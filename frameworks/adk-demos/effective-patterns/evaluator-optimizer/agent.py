@@ -93,8 +93,7 @@ if __name__ == '__main__':
     session_service = InMemorySessionService()
     artifact_service = InMemoryArtifactService()
 
-    # Create session once
-    session_service.create_session(
+    session = session_service.create_session(
         app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
     )
 
@@ -105,5 +104,6 @@ if __name__ == '__main__':
         session_service=session_service,
         artifact_service=artifact_service,
     )
-    call_agent("Write a Python function that calculates the factorial of a number.")
+    call_agent("Write a Python function that calculates the factorial of a number."
+               "Make sure to add type hints to the function parameters and return type.")
     # inspect_state()

@@ -34,10 +34,10 @@ AGENT_CONFIGS: List[Dict] = [
         "temperature": 0.7
     },
     {
-        "name": "joke_publisher",
-        "description": "Publish the joke",
-        "instruction": "Publish the joke, add a surprise twist at the end",
-        "output_key": "published_joke",
+        "name": "joke_polisher",
+        "description": "Polish the joke",
+        "instruction": "Polish the joke, add a surprise twist at the end",
+        "output_key": "polished_joke",
         "temperature": 0.5
     },
 ]
