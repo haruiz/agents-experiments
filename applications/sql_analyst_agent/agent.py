@@ -150,26 +150,17 @@ root_agent = LoopAgent(
 )
 
 # --- Runtime Entrypoint ---
-def call_agent(prompt: str) -> None:
+async def call_agent(prompt: str) -> None:
     """
     Call the root agent with a prompt and print the final output.
 
     Args:
         prompt (str): Natural language query for database.
     """
-    content = types.Content(role="user", parts=[types.Part(text=prompt)])
-    events = runner.run(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
-
-    for event in events:
-        if event.is_final_response() and event.content:
-            logger.info("\n\n[Final Response]\n%s", event.content.parts[0].text)
-
-
-if __name__ == "__main__":
     # --- Session & Runner Setup ---
     session_service = InMemorySessionService()
     artifact_service = InMemoryArtifactService()
-    session = session_service.create_session(
+    session = await session_service.create_session(
         app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
     )
 
@@ -180,4 +171,23 @@ if __name__ == "__main__":
         artifact_service=artifact_service
     )
 
-    call_agent("List the name of the first 5 customers in my database")
+
+    content = types.Content(role="user", parts=[types.Part(text=prompt)])
+    events = runner.run(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
+
+    for event in events:
+        if event.is_final_response() and event.content:
+            logger.info("\n\n[Final Response]\n%s", event.content.parts[0].text)
+
+
+if __name__ == "__main__":
+    try:
+        prompt = (
+            "List the top 10 customers by total order amount"
+        )
+        logger.info("Calling agent with prompt: %s", prompt)
+        import asyncio
+        asyncio.run(call_agent(prompt))
+    except Exception as e:
+        logger.exception("An error occurred while running the agent.")
+        print(f"Error: {e}")
