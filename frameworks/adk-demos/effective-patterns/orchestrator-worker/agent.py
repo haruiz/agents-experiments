@@ -95,25 +95,46 @@ orchestrator_agent = LoopAgent(
 root_agent = orchestrator_agent
 
 
-# --- Agent Interaction Functions ---
-def call_agent(prompt: str):
+
+# --- Execution Helpers ---
+async def call_agent(prompt: str):
     """
-    Trigger the orchestrator with a prompt.
+    Call the router agent with a user prompt and print the response.
     """
+    # --- Session & Runner Setup ---
+    session_service = InMemorySessionService()
+    artifact_service = InMemoryArtifactService()
+
+    session = await session_service.create_session(
+        app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
+    )
+
+    runner = Runner(
+        agent=root_agent,
+        app_name=APP_NAME,
+        session_service=session_service,
+        artifact_service=artifact_service
+    )
+
     print(Panel.fit(f"[bold white]User Prompt:[/bold white] {prompt}", title="👤"))
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
-    events = runner.run(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
+    events = runner.run_async(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
 
-    for event in events:
+    async for event in events:
         if event.is_final_response() and event.content:
             response = event.content.parts[0].text
             print(Panel.fit(f"[bold green]{event.author}:[/bold green] {response}", title="🤖"))
 
-def inspect_state():
+    # --- Inspect Session State ---
+    await inspect_state(session_service)
+
+
+async def inspect_state(session_service: InMemorySessionService):
     """
-    Print session state from memory.
+    Print the internal session state.
     """
-    state = runner.session_service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID).state
+    user_session = await session_service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID)
+    state = user_session.state if user_session else {}
     print(Panel.fit("[bold yellow]Session State[/bold yellow]"))
     for key, value in state.items():
         print(f"[cyan]{key}[/cyan]: {value}")
@@ -121,7 +142,7 @@ def inspect_state():
 # --- Main Entry Point ---
 if __name__ == '__main__':
     # --- Constants ---
-    APP_NAME = "joke_generator_app"
+    APP_NAME = "task_orchestrator_app"
     USER_ID = "dev_user_01"
     SESSION_ID = "dev_user_session_01"
 
@@ -132,12 +153,9 @@ if __name__ == '__main__':
         app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
     )
 
-    runner = Runner(
-        agent=orchestrator_agent,
-        app_name=APP_NAME,
-        session_service=session_service,
-        artifact_service=artifact_service,
-    )
-
-    call_agent("Robots")
-    # inspect_state()
+    # --- Run the agent with a sample prompt ---
+    import asyncio
+    try:
+        asyncio.run(call_agent("Tell me a joke, a song, and a poem about robots"))
+    except Exception as e:
+        print(f"Error during agent execution: {e}")

@@ -6,7 +6,7 @@ from google.adk import Runner
 from google.adk.agents import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.sessions import InMemorySessionService
-from google.adk.tools import built_in_code_execution
+from google.adk.code_executors import BuiltInCodeExecutor
 from google.genai import types
 from rich import print
 from rich.panel import Panel
@@ -18,21 +18,22 @@ load_dotenv()
 root_agent = LlmAgent(
     name="CodeAgent",
     model="gemini-2.0-flash",
-    tools=[built_in_code_execution],
+    code_executor=BuiltInCodeExecutor(),
     instruction="""You are a calculator agent.
-    When given a mathematical expression, function, or task, write and EXECUTE the Python code to obtain the result.
-    """,
+       When given a mathematical expression, function, or task, write and EXECUTE the Python code to obtain the result.
+       """,
     description="Executes Python code to perform calculations.",
 )
 
-def call_agent(prompt: str):
+
+async def call_agent(prompt: str):
     """
     Send user input to the orchestrator agent and stream responses.
     """
     # --- Services ---
     session_service = InMemorySessionService()
     artifact_service = InMemoryArtifactService()
-    session = session_service.create_session(
+    session = await session_service.create_session(
         app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
     )
     # --- Runner Setup ---
@@ -44,9 +45,9 @@ def call_agent(prompt: str):
     )
     print(Panel.fit(f"[bold white]User Prompt[/bold white]: {prompt}", title="👤"))
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
-    events = runner.run(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
+    events = runner.run_async(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
 
-    for event in events:
+    async for event in events:
         # --- Check for specific parts FIRST ---
         has_specific_part = False
         if event.content and event.content.parts:
@@ -57,7 +58,8 @@ def call_agent(prompt: str):
                     has_specific_part = True
                 elif part.code_execution_result:
                     # Access outcome and output correctly
-                    print(f"  Debug: Code Execution Result: {part.code_execution_result.outcome} - Output:\n{part.code_execution_result.output}")
+                    print(
+                        f"  Debug: Code Execution Result: {part.code_execution_result.outcome} - Output:\n{part.code_execution_result.output}")
                     has_specific_part = True
                 elif part.inline_data:
                     print(f"  Debug: Inline Data: {part.inline_data.mime_type}")
@@ -88,7 +90,9 @@ if __name__ == '__main__':
     USER_ID = "user_123"
     SESSION_ID = "session_456"
 
-
-    call_agent("Generates an array of 1000 random numbers from a normal distribution with mean 0 and standard deviation 1, "
-               "create a histogram of the data, and "
-               "save the histogram as a PNG file plot.png")
+    cor = call_agent(
+        "Generates an array of 1000 random numbers from a normal distribution with mean 0 and standard deviation 1, "
+        "create a histogram of the data, and "
+        "save the histogram as a PNG file plot.png")
+    import asyncio
+    asyncio.run(cor)

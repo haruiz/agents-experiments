@@ -1,5 +1,10 @@
+import os
+import uuid
+
+from google.adk.agents import BaseAgent
 from google.adk.agents.sequential_agent import SequentialAgent
 from google.adk.agents.llm_agent import LlmAgent
+from google.adk.artifacts import InMemoryArtifactService
 from google.genai import types
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
@@ -72,28 +77,43 @@ root_agent = SequentialAgent(
     # The agents will run in the order provided: Writer -> Reviewer -> Refactorer
 )
 
+async def call_agent_async(agent: BaseAgent, prompt: str) -> None:
+    """
+    Call the root agent with a prompt and print the final output using Rich panels.
+
+    Args:
+        agent:  The agent to be called.
+        prompt (str): Natural language query for database.
+    """
+    APP_NAME = os.getenv("APP_NAME", str(uuid.uuid4()))
+    USER_ID = os.getenv("USER_ID", str(uuid.uuid4()))
+    SESSION_ID = os.getenv("SESSION_ID", str(uuid.uuid4()))
+
+    session_service = InMemorySessionService()
+    artifact_service = InMemoryArtifactService()
+
+    runner = Runner(
+        agent=agent,
+        app_name=APP_NAME,
+        session_service=session_service,
+        artifact_service=artifact_service,
+    )
+    session = await session_service.create_session(
+        app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
+    )
+
+    content = types.Content(role="user", parts=[types.Part(text=prompt)])
+    events = runner.run_async(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
+
+    async for event in events:
+        if event.is_final_response() and event.content:
+            response_text = event.content.parts[0].text
+            print(response_text)
+
 if __name__ == '__main__':
 
     # Session and Runner
 
-    # --- Constants ---
-    APP_NAME = "code_pipeline_app"
-    USER_ID = "dev_user_01"
-    SESSION_ID = "pipeline_session_01"
-
-    session_service = InMemorySessionService()
-    session = session_service.create_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID)
-    runner = Runner(agent=root_agent, app_name=APP_NAME, session_service=session_service)
-
-
-    # Agent Interaction
-    def call_agent(query):
-        content = types.Content(role='user', parts=[types.Part(text=query)])
-        events = runner.run(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
-
-        for event in events:
-            if event.is_final_response():
-                final_response = event.content.parts[0].text
-                print(event.author, final_response)
-
-    call_agent("perform math addition")
+    import asyncio
+    prompt = "Write a Python function to calculate the factorial of a number."
+    asyncio.run(call_agent_async(root_agent, prompt))

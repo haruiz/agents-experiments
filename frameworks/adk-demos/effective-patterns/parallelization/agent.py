@@ -1,3 +1,5 @@
+import asyncio
+
 from dotenv import load_dotenv
 from rich import print
 from rich.panel import Panel
@@ -112,42 +114,17 @@ root_agent = SequentialAgent(
 )
 
 
-# --- Interaction Functions ---
-def call_agent(prompt: str):
+# --- Execution Helpers ---
+async def call_agent(prompt: str):
     """
-    Send a prompt to the root agent and print structured results.
+    Call the router agent with a user prompt and print the response.
     """
-    print(Panel.fit(f"[bold white]User Prompt:[/bold white] {prompt}", title="👤"))
-    content = types.Content(role="user", parts=[types.Part(text=prompt)])
-    events = runner.run(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
-
-    for event in events:
-        if event.is_final_response() and event.content:
-            print(Panel.fit(f"[bold green]{event.author}:[/bold green]\n{event.content.parts[0].text}", title="🤖"))
-
-def inspect_state():
-    """
-    Print the internal state of the session.
-    """
-    state = runner.session_service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID).state
-    print(Panel.fit("[bold yellow]Session State[/bold yellow]"))
-    for key, value in state.items():
-        print(f"[cyan]{key}[/cyan]: {value}")
-
-# --- Main ---
-if __name__ == '__main__':
-    APP_NAME = "joke_generator_app"
-    USER_ID = "dev_user_01"
-    SESSION_ID = "dev_user_session_01"
-
     # --- Session & Runner Setup ---
     session_service = InMemorySessionService()
     artifact_service = InMemoryArtifactService()
 
-    session_service.create_session(
-        app_name=APP_NAME,
-        user_id=USER_ID,
-        session_id=SESSION_ID
+    session = await session_service.create_session(
+        app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
     )
 
     runner = Runner(
@@ -157,5 +134,36 @@ if __name__ == '__main__':
         artifact_service=artifact_service
     )
 
-    call_agent("Please generate something funny and poetic.")
-    inspect_state()
+    print(Panel.fit(f"[bold white]User Prompt:[/bold white] {prompt}", title="👤"))
+    content = types.Content(role="user", parts=[types.Part(text=prompt)])
+    events = runner.run_async(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
+
+    async for event in events:
+        if event.is_final_response() and event.content:
+            response = event.content.parts[0].text
+            print(Panel.fit(f"[bold green]{event.author}:[/bold green] {response}", title="🤖"))
+
+    # --- Inspect Session State ---
+    await inspect_state(session_service)
+
+
+async def inspect_state(session_service: InMemorySessionService):
+    """
+    Print the internal session state.
+    """
+    user_session = await session_service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID)
+    state = user_session.state if user_session else {}
+    print(Panel.fit("[bold yellow]Session State[/bold yellow]"))
+    for key, value in state.items():
+        print(f"[cyan]{key}[/cyan]: {value}")
+
+# --- Main ---
+if __name__ == '__main__':
+    APP_NAME = "joke_song_poem_generator_app"
+    USER_ID = "dev_user_01"
+    SESSION_ID = "dev_user_session_01"
+
+    try:
+        asyncio.run(call_agent("Please generate something funny and poetic."))
+    except Exception as e:
+        print(Panel.fit(f"[bold red]Error:[/bold red] {str(e)}", title="❌"))

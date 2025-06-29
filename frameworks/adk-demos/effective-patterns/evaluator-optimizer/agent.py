@@ -60,27 +60,49 @@ refinement_loop = LoopAgent(
 # --- Set root agent for the web user interface ---
 root_agent = refinement_loop
 
-def call_agent(prompt: str):
-    """
-    Send user input to the orchestrator agent and stream responses.
-    """
-    print(Panel.fit(f"[bold white]User Prompt[/bold white]: {prompt}", title="👤"))
-    content = types.Content(role="user", parts=[types.Part(text=prompt)])
-    events = runner.run(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
 
-    for event in events:
+# --- Execution Helpers ---
+async def call_agent(prompt: str):
+    """
+    Call the router agent with a user prompt and print the response.
+    """
+    # --- Session & Runner Setup ---
+    session_service = InMemorySessionService()
+    artifact_service = InMemoryArtifactService()
+
+    session = await session_service.create_session(
+        app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
+    )
+
+    runner = Runner(
+        agent=root_agent,
+        app_name=APP_NAME,
+        session_service=session_service,
+        artifact_service=artifact_service
+    )
+
+    print(Panel.fit(f"[bold white]User Prompt:[/bold white] {prompt}", title="👤"))
+    content = types.Content(role="user", parts=[types.Part(text=prompt)])
+    events = runner.run_async(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
+
+    async for event in events:
         if event.is_final_response() and event.content:
             response = event.content.parts[0].text
             print(Panel.fit(f"[bold green]{event.author}:[/bold green] {response}", title="🤖"))
 
-def inspect_state():
+    # --- Inspect Session State ---
+    await inspect_state(session_service)
+
+
+async def inspect_state(session_service: InMemorySessionService):
     """
     Print the internal session state.
     """
-    state = session_service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID).state
+    user_session = await session_service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID)
+    state = user_session.state if user_session else {}
     print(Panel.fit("[bold yellow]Session State[/bold yellow]"))
     for key, value in state.items():
-        print(f"[cyan]{key}[/cyan]:\n{value}\n")
+        print(f"[cyan]{key}[/cyan]: {value}")
 
 # --- Entry Point ---
 if __name__ == '__main__':
@@ -89,21 +111,10 @@ if __name__ == '__main__':
     USER_ID = "user_123"
     SESSION_ID = "session_456"
 
-    # --- Services ---
-    session_service = InMemorySessionService()
-    artifact_service = InMemoryArtifactService()
 
-    session = session_service.create_session(
-        app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
-    )
-
-    # --- Runner Setup ---
-    runner = Runner(
-        agent=refinement_loop,
-        app_name=APP_NAME,
-        session_service=session_service,
-        artifact_service=artifact_service,
-    )
-    call_agent("Write a Python function that calculates the factorial of a number."
-               "Make sure to add type hints to the function parameters and return type.")
-    # inspect_state()
+    # run the agent with a sample prompt
+    try:
+        import asyncio
+        asyncio.run(call_agent("I need a Python function that calculates the factorial of a number."))
+    except Exception as e:
+        print(f"[bold red]Error:[/bold red] {e}")

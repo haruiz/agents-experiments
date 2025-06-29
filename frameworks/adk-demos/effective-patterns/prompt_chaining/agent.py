@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional, List, Dict
 from dotenv import load_dotenv
 from rich import print
@@ -80,27 +81,48 @@ joke_workflow = SequentialAgent(
 # --- Set root agent for the web user interface ---
 root_agent = joke_workflow
 
-# --- Execution Handlers ---
-def call_agent(prompt: str):
+# --- Execution Helpers ---
+async def call_agent(prompt: str):
     """
-    Run the agent workflow with a user prompt.
+    Call the router agent with a user prompt and print the response.
     """
+    # --- Session & Runner Setup ---
+    session_service = InMemorySessionService()
+    artifact_service = InMemoryArtifactService()
+
+    session = await session_service.create_session(
+        app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
+    )
+
+    runner = Runner(
+        agent=root_agent,
+        app_name=APP_NAME,
+        session_service=session_service,
+        artifact_service=artifact_service
+    )
+
     print(Panel.fit(f"[bold white]User Prompt:[/bold white] {prompt}", title="👤"))
     content = types.Content(role="user", parts=[types.Part(text=prompt)])
-    events = runner.run(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
+    events = runner.run_async(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
 
-    for event in events:
+    async for event in events:
         if event.is_final_response() and event.content:
-            print(Panel.fit(f"[bold green]{event.author}:[/bold green] {event.content.parts[0].text}", title="🤖"))
+            response = event.content.parts[0].text
+            print(Panel.fit(f"[bold green]{event.author}:[/bold green] {response}", title="🤖"))
 
-def inspect_state():
+    # --- Inspect Session State ---
+    await inspect_state(session_service)
+
+
+async def inspect_state(session_service: InMemorySessionService):
     """
-    Inspect and print the internal session state.
+    Print the internal session state.
     """
-    state = runner.session_service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID).state
+    user_session = await session_service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID)
+    state = user_session.state if user_session else {}
     print(Panel.fit("[bold yellow]Session State[/bold yellow]"))
     for key, value in state.items():
-        print(f"[cyan]{key}[/cyan]:\n{value}\n")
+        print(f"[cyan]{key}[/cyan]: {value}")
 
 # --- Main Execution ---
 if __name__ == '__main__':
@@ -108,23 +130,7 @@ if __name__ == '__main__':
     USER_ID = "dev_user_01"
     SESSION_ID = "dev_user_session_01"
 
-    # --- Session & Runner Setup ---
-    session_service = InMemorySessionService()
-    artifact_service = InMemoryArtifactService()
-
-    session_service.create_session(
-        app_name=APP_NAME, user_id=USER_ID, session_id=SESSION_ID
-    )
-
-    runner = Runner(
-        agent=joke_workflow,
-        app_name=APP_NAME,
-        session_service=session_service,
-        artifact_service=artifact_service
-    )
-
     try:
-        call_agent("Tell me a robot joke")
-        inspect_state()
+        asyncio.run(call_agent("Tell me a robot joke"))
     except Exception as e:
         print(Panel.fit(f"[bold red]Error:[/bold red] {str(e)}", title="❌"))
