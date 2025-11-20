@@ -1,0 +1,13 @@
+[project]
+name = "my-ag-app"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "ag-ui-adk==0.3.1",
+    "fastmcp>=2.13.1",
+    "google-adk==1.18.0",
+    "google-genai>=1.51.0",
+    "googlemaps>=4.10.0",
+]

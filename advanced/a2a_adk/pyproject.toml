@@ -1,0 +1,10 @@
+[project]
+name = "a2a-adk"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11.11"
+dependencies = [
+    "a2a-sdk[all]>=0.3.4",
+    "google-adk>=1.10.0",
+]

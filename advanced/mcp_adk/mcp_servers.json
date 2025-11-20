@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "file_upload_server": {
+        "type": "streamable-http",
+        "url": "http://localhost:8002/mcp/"
+    }
+  }
+}
